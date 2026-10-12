@@ -1,0 +1,82 @@
+! ==============================================================================
+! Cisco IOS Configuration: SW3-ACCESS-FLOOR2
+! Enterprise Converged Voice & Data Network
+! Model: Cisco Catalyst 2960 Layer 2 Access Switch
+! ==============================================================================
+
+version 15.0
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname SW3-ACCESS-FLOOR2
+!
+! ------------------------------------------------------------------------------
+! 1. GLOBAL QUALITY OF SERVICE (MLS QoS)
+! ------------------------------------------------------------------------------
+mls qos
+!
+! ------------------------------------------------------------------------------
+! 2. VLAN DATABASE CREATION
+! ------------------------------------------------------------------------------
+vlan 10
+ name DATA_VLAN
+!
+vlan 20
+ name VOICE_VLAN
+!
+vlan 99
+ name NATIVE_MGMT_VLAN
+!
+! ------------------------------------------------------------------------------
+! 3. TRUNK LINK TO CORE SWITCH
+! ------------------------------------------------------------------------------
+interface GigabitEthernet0/1
+ description 802.1Q Uplink Trunk to SW1-CORE-SWITCH
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 10,20,99
+ mls qos trust cos
+ no shutdown
+!
+! ------------------------------------------------------------------------------
+! 4. ACCESS PORTS WITH CISCO IP PHONE DAISY-CHAINING & VOICE VLAN
+! ------------------------------------------------------------------------------
+interface range FastEthernet0/1 - 12
+ description Converged VoIP & PC Port (VLAN 10 Data / VLAN 20 Voice)
+ switchport mode access
+ switchport access vlan 10
+ switchport voice vlan 20
+ mls qos trust device cisco-phone
+ mls qos trust cos
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+!
+interface range FastEthernet0/13 - 24
+ description Standard Workstation Access Port (Data Only)
+ switchport mode access
+ switchport access vlan 10
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ no shutdown
+!
+! ------------------------------------------------------------------------------
+! 5. MANAGEMENT INTERFACE
+! ------------------------------------------------------------------------------
+interface Vlan99
+ description Out-of-Band Management Interface
+ ip address 192.168.99.12 255.255.255.0
+ no shutdown
+!
+ip default-gateway 192.168.99.1
+!
+line con 0
+ exec-timeout 0 0
+ logging synchronous
+!
+line vty 0 4
+ transport input ssh
+ login local
+!
+end

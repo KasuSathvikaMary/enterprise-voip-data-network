@@ -1,0 +1,95 @@
+! ==============================================================================
+! Cisco IOS Configuration: SW1-CORE-SWITCH
+! Enterprise Converged Voice & Data Network
+! Model: Cisco Catalyst 3560 / 3650 Multilayer Switch
+! ==============================================================================
+
+version 15.0
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname SW1-CORE-SWITCH
+!
+! ------------------------------------------------------------------------------
+! 1. GLOBAL QUALITY OF SERVICE (MLS QoS)
+! ------------------------------------------------------------------------------
+mls qos
+!
+! Map CoS to DSCP (Cisco Recommended Enterprise Baseline):
+! CoS 5 (Voice) -> DSCP 46 (EF)
+! CoS 3 (Call Signaling) -> DSCP 24 (CS3)
+! CoS 0 (Best Effort Data) -> DSCP 0 (Default)
+mls qos map cos-dscp 0 8 16 24 32 46 48 56
+!
+! ------------------------------------------------------------------------------
+! 2. VLAN DATABASE CREATION
+! ------------------------------------------------------------------------------
+vlan 10
+ name DATA_VLAN
+!
+vlan 20
+ name VOICE_VLAN
+!
+vlan 99
+ name NATIVE_MGMT_VLAN
+!
+! ------------------------------------------------------------------------------
+! 3. SPANNING TREE PROTOCOL (RAPID-PVST+)
+! ------------------------------------------------------------------------------
+spanning-tree mode rapid-pvst
+spanning-tree portfast default
+spanning-tree portfast bpduguard default
+!
+! ------------------------------------------------------------------------------
+! 4. CORE INTERFACES & TRUNKING
+! ------------------------------------------------------------------------------
+! Uplink to R1 Voice Gateway Router
+interface GigabitEthernet0/1
+ description 802.1Q Trunk Link to R1-VOICE-GW
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 10,20,99
+ mls qos trust dscp
+ no shutdown
+!
+! Downlink Trunk to SW2-Access-Floor1
+interface GigabitEthernet0/2
+ description 802.1Q Trunk Link to SW2-Access-Floor1
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 10,20,99
+ mls qos trust cos
+ no shutdown
+!
+! Downlink Trunk to SW3-Access-Floor2
+interface GigabitEthernet0/3
+ description 802.1Q Trunk Link to SW3-Access-Floor2
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 10,20,99
+ mls qos trust cos
+ no shutdown
+!
+! ------------------------------------------------------------------------------
+! 5. MANAGEMENT INTERFACE
+! ------------------------------------------------------------------------------
+interface Vlan99
+ description Out-of-Band Management Interface
+ ip address 192.168.99.2 255.255.255.0
+ no shutdown
+!
+ip default-gateway 192.168.99.1
+!
+line con 0
+ exec-timeout 0 0
+ logging synchronous
+!
+line vty 0 4
+ transport input ssh
+ login local
+!
+end

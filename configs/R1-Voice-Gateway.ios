@@ -1,0 +1,168 @@
+! ==============================================================================
+! Cisco IOS Configuration: R1-VOICE-GW (Core Router / Call Manager Express CME)
+! Enterprise Converged Voice & Data Network
+! Model: Cisco 2811 / 2901 / 2911 Integrated Services Router
+! ==============================================================================
+
+version 15.1
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname R1-VOICE-GW
+!
+ip domain-name enterprise.corp
+!
+! ------------------------------------------------------------------------------
+! 1. QUALITY OF SERVICE (QoS) - MODULAR QoS CLI (MQC)
+! RFC 4594 / Cisco Enterprise QoS Solution Reference Network Design (SRND)
+! ------------------------------------------------------------------------------
+! Class-map: Classify real-time Voice RTP traffic (DSCP EF / CoS 5)
+class-map match-any VOICE-PAYLOAD
+ match ip dscp ef
+ match protocol rtp audio
+!
+! Class-map: Classify Call Control & Signaling traffic (DSCP CS3, AF31 / CoS 3)
+class-map match-any CALL-SIGNALING
+ match ip dscp cs3
+ match ip dscp af31
+ match protocol sip
+ match protocol skinny
+!
+! Policy-map: Enforce Low Latency Queueing (LLQ) & Bandwidth Guarantees
+policy-map ENTERPRISE-QOS-EDGE
+ class VOICE-PAYLOAD
+  priority percent 33
+ class CALL-SIGNALING
+  bandwidth percent 5
+ class class-default
+  fair-queue
+  random-detect
+!
+! ------------------------------------------------------------------------------
+! 2. DHCP CONFIGURATION & OPTION 150 (TFTP BOOT FOR CISCO IP PHONES)
+! ------------------------------------------------------------------------------
+ip dhcp excluded-address 192.168.10.1 192.168.10.10
+ip dhcp excluded-address 192.168.20.1 192.168.20.10
+ip dhcp excluded-address 192.168.99.1 192.168.99.10
+!
+! Data VLAN DHCP Pool (PCs and Workstations)
+ip dhcp pool DATA_POOL
+ network 192.168.10.0 255.255.255.0
+ default-router 192.168.10.1
+ dns-server 1.1.1.1 8.8.8.8
+ domain-name enterprise.corp
+!
+! Voice VLAN DHCP Pool (Cisco 7960 IP Phones)
+ip dhcp pool VOICE_POOL
+ network 192.168.20.0 255.255.255.0
+ default-router 192.168.20.1
+ dns-server 192.168.20.1
+ option 150 ip 192.168.20.1
+!
+! ------------------------------------------------------------------------------
+! 3. ROUTER-ON-A-STICK SUBINTERFACES (802.1Q TRUNKING)
+! ------------------------------------------------------------------------------
+interface GigabitEthernet0/0
+ description Trunk Link to SW1-Core-Switch
+ no ip address
+ duplex auto
+ speed auto
+ no shutdown
+!
+interface GigabitEthernet0/0.10
+ description Data VLAN (Workstations)
+ encapsulation dot1Q 10
+ ip address 192.168.10.1 255.255.255.0
+ no shutdown
+!
+interface GigabitEthernet0/0.20
+ description Voice VLAN (IP Telephony)
+ encapsulation dot1Q 20
+ ip address 192.168.20.1 255.255.255.0
+ service-policy output ENTERPRISE-QOS-EDGE
+ no shutdown
+!
+interface GigabitEthernet0/0.99
+ description Native & Management VLAN
+ encapsulation dot1Q 99 native
+ ip address 192.168.99.1 255.255.255.0
+ no shutdown
+!
+! ------------------------------------------------------------------------------
+! 4. CISCO CALL MANAGER EXPRESS (CME / TELEPHONY-SERVICE)
+! ------------------------------------------------------------------------------
+telephony-service
+ max-ephones 24
+ max-dn 48
+ ip source-address 192.168.20.1 port 2000
+ auto assign 1 to 24
+ max-conferences 8 gain -6
+ transfer-system full-consult
+ create cnf-files
+!
+! Directory Numbers (ephone-dn) - Line Extensions & Display Names
+ephone-dn 1
+ number 1001
+ name Executive-Office
+ description Exec Line Ext 1001
+!
+ephone-dn 2
+ number 1002
+ name Engineering-Lead
+ description Eng Line Ext 1002
+!
+ephone-dn 3
+ number 1003
+ name Sales-Floor
+ description Sales Line Ext 1003
+!
+ephone-dn 4
+ number 1004
+ name Helpdesk-Support
+ description Support Line Ext 1004
+!
+! Cisco IP Phones (ephone) - Device Registrations & Button Mappings
+ephone 1
+ mac-address 0001.965A.3201
+ type 7960
+ button 1:1
+!
+ephone 2
+ mac-address 0001.965A.3202
+ type 7960
+ button 1:2
+!
+ephone 3
+ mac-address 0001.965A.3203
+ type 7960
+ button 1:3
+!
+ephone 4
+ mac-address 0001.965A.3204
+ type 7960
+ button 1:4
+!
+! ------------------------------------------------------------------------------
+! 5. DIAL-PEERS (CALL ROUTING & INTER-BRANCH TRUNKING)
+! ------------------------------------------------------------------------------
+dial-peer voice 100 pots
+ destination-pattern 10..
+ port 0/0/0
+!
+dial-peer voice 200 voip
+ destination-pattern 2...
+ session target ipv4:10.1.1.2
+ codec g711ulaw
+ ip qos dscp ef media
+ ip qos dscp af31 signaling
+!
+line con 0
+ exec-timeout 0 0
+ logging synchronous
+!
+line vty 0 4
+ transport input ssh
+ login local
+!
+end
